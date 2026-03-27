@@ -59,10 +59,55 @@
         const { useState, useEffect } = React;
 
         const REGIONS = {
-          north: { name: '北臺灣', color: 'bg-green-200 text-green-800 border-green-400', stations: ['基隆', '七堵', '臺北', '松山', '板橋', '樹林', '桃園', '中壢', '新竹'] },
-          central: { name: '中臺灣', color: 'bg-yellow-200 text-yellow-800 border-yellow-400', stations: ['竹南', '苗栗', '豐原', '臺中', '彰化', '員林', '斗六'] },
-          south: { name: '南臺灣', color: 'bg-blue-200 text-blue-800 border-blue-400', stations: ['嘉義', '新營', '臺南', '新左營', '高雄', '屏東', '潮州'] },
-          east: { name: '東臺灣', color: 'bg-pink-200 text-pink-800 border-pink-400', stations: ['瑞芳', '宜蘭', '羅東', '花蓮', '玉里', '池上', '臺東'] }
+          north: {
+            name: '北臺灣', color: 'bg-green-200 text-green-800 border-green-400',
+            counties: [
+              { name: '基隆市', stations: ['[基隆]', '三坑', '[八堵]', '[七堵]', '百福', '暖暖'] },
+              { name: '臺北市', stations: ['[南港]', '[松山]', '[臺北]', '[萬華]'] },
+              { name: '新北市', stations: ['[汐止]', '汐科', '五堵', '[板橋]', '浮洲', '[樹林]', '南樹林', '山佳', '[鶯歌]', '四腳亭', '[瑞芳]', '[猴硐]', '三貂嶺', '牡丹', '[雙溪]', '貢寮', '[福隆]'] },
+              { name: '桃園市', stations: ['[桃園]', '內壢', '[中壢]', '埔心', '楊梅', '富岡', '新富'] },
+              { name: '新竹縣', stations: ['北湖', '湖口', '新豐', '[竹北]'] },
+              { name: '新竹市', stations: ['北新竹', '[新竹]', '三姓橋', '香山'] }
+            ]
+          },
+          central: {
+            name: '中臺灣', color: 'bg-yellow-200 text-yellow-800 border-yellow-400',
+            counties: [
+              { name: '苗栗縣', stations: ['崎頂', '[竹南]', '造橋', '[豐富]', '[苗栗]', '南勢', '銅鑼', '[三義]', '談文', '大山', '[後龍]', '龍港', '白沙屯', '新埔', '[通霄]', '[苑裡]'] },
+              { name: '臺中市', stations: ['泰安', '[后里]', '[豐原]', '栗林', '潭子', '頭家厝', '[松竹]', '太原', '精武', '[臺中]', '五權', '大慶', '烏日', '[新烏日]', '成功', '日南', '[大甲]', '臺中港', '[清水]', '[沙鹿]', '龍井', '大肚', '追分'] },
+              { name: '彰化縣', stations: ['[彰化]', '花壇', '大村', '[員林]', '永靖', '社頭', '[田中]', '[二水]'] },
+              { name: '雲林縣', stations: ['林內', '石榴', '[斗六]', '[斗南]', '石龜'] }
+            ]
+          },
+          south: {
+            name: '南臺灣', color: 'bg-blue-200 text-blue-800 border-blue-400',
+            counties: [
+              { name: '嘉義縣', stations: ['[大林]', '[民雄]', '水上', '南靖'] },
+              { name: '嘉義市', stations: ['嘉北', '[嘉義]'] },
+              { name: '臺南市', stations: ['後壁', '[新營]', '柳營', '林鳳營', '[隆田]', '拔林', '[善化]', '南科', '新市', '[永康]', '大橋', '[臺南]', '保安', '仁德', '中洲'] },
+              { name: '高雄市', stations: ['大湖', '路竹', '[岡山]', '橋頭', '楠梓', '[新左營]', '左營', '內惟', '美術館', '鼓山', '三塊厝', '[高雄]', '[鳳山]', '後庄', '[九曲堂]'] },
+              { name: '屏東縣', stations: ['六塊厝', '[屏東]', '歸來', '麟洛', '[西勢]', '竹田', '[潮州]', '崁頂', '[南州]', '鎮安', '[林邊]', '[佳冬]', '東海', '[枋寮]', '加祿', '內獅', '枋山'] }
+            ]
+          },
+          east: {
+            name: '東臺灣', color: 'bg-pink-200 text-pink-800 border-pink-400',
+            counties: [
+              { name: '宜蘭縣', stations: ['漢本', '武塔', '[南澳]', '[東澳]', '永樂', '[蘇澳]', '[蘇澳新]', '新馬', '[冬山]', '[羅東]', '中里', '二結', '[宜蘭]', '四城', '[礁溪]', '頂埔', '[頭城]', '外澳', '龜山', '大溪', '大里', '石城'] },
+              { name: '花蓮縣', stations: ['[富里]', '東竹', '東里', '[玉里]', '三民', '[瑞穗]', '富源', '大富', '[光復]', '萬榮', '[鳳林]', '南平', '[林榮新光]', '豐田', '[壽豐]', '平和', '[志學]', '[吉安]', '[花蓮]', '北埔', '景美', '[新城(太魯閣)]', '崇德', '和仁', '[和平]'] },
+              { name: '臺東縣', stations: ['[大武]', '[瀧溪]', '[金崙]', '[太麻里]', '[知本]', '康樂', '[臺東]', '山里', '[鹿野]', '瑞源', '瑞和', '[關山]', '海端', '[池上]'] }
+            ]
+          },
+          branches: {
+            name: '客運支線', color: 'bg-gray-200 text-gray-800 border-gray-400',
+            counties: [
+              { name: '平溪線', stations: ['三貂嶺', '大華', '十分', '望古', '嶺腳', '平溪', '菁桐'] },
+              { name: '深澳線', stations: ['瑞芳', '海科館', '八斗子'] },
+              { name: '內灣線', stations: ['新竹', '北新竹', '千甲', '新莊', '竹中', '上員', '榮華', '竹東', '橫山', '九讚頭', '合興', '富貴', '內灣'] },
+              { name: '六家線', stations: ['竹中', '六家'] },
+              { name: '集集線', stations: ['二水', '源泉', '濁水', '龍泉', '集集', '水里', '車埕'] },
+              { name: '沙崙線', stations: ['中洲', '長榮大學', '沙崙'] }
+            ]
+          }
         };
 
         function App() {
@@ -88,6 +133,7 @@
           });
 
           const [selectedRegion, setSelectedRegion] = useState(null);
+          const [selectedCounty, setSelectedCounty] = useState(null);
           const [editingField, setEditingField] = useState(null); // 用於追蹤左側欄點擊了哪個「更改」
           
           const [paymentMethod, setPaymentMethod] = useState(null);
@@ -126,6 +172,7 @@
               totalAmount: 0
             });
             setSelectedRegion(null);
+            setSelectedCounty(null);
             setEditingField(null);
             setPaymentMethod(null);
             setPaidAmount(0);
@@ -179,6 +226,7 @@
              setEditingField(field);
              if (field === 'origin' || field === 'destination') {
                  setSelectedRegion(null);
+                 setSelectedCounty(null);
                  setStep('STATION_SELECT');
              } else if (field === 'date') {
                  setStep('DATE_SELECT');
@@ -400,59 +448,114 @@
               </div>
             </div>);
 
-          // 地圖畫面更新為臺灣形狀排版
+          // 地圖畫面更新為臺灣形狀排版及多層級車站選擇
           const renderStationSelect = () => {
              const titleText = editingField === 'origin' ? '請選擇起站' : '請選擇到達站';
              
+             // 輔助函式：清理站名標記
+             const cleanName = (name) => name.replace(/\[|\]/g, '');
+             const isMain = (name) => name.startsWith('[') && name.endsWith(']');
+
+             // 選站邏輯
+             const handleStationClick = (stationName) => {
+                 const clean = cleanName(stationName);
+                 if (editingField === 'origin') {
+                     updateTicketInfo('origin', clean);
+                     setEditingField('destination'); 
+                     setSelectedRegion(null);
+                     setSelectedCounty(null);
+                 } else {
+                     updateTicketInfo('destination', clean);
+                     setStep('TICKET_QUANTITY');
+                 }
+             };
+
              return (
              <div className="flex-1 flex flex-col h-full bg-gray-50"><div className="flex flex-1 overflow-hidden">{renderSidebar()}
-                <div className="flex-1 flex flex-col"><div className="bg-blue-600 text-white p-3 font-bold flex justify-between items-center shadow-md z-10"><span className="text-lg">{selectedRegion ? `${titleText} - ${REGIONS[selectedRegion].name}` : titleText}</span></div>
-                  <div className="flex-1 relative flex items-center justify-center bg-gray-100 p-6 overflow-hidden">
+                <div className="flex-1 flex flex-col"><div className="bg-blue-600 text-white p-3 font-bold flex justify-between items-center shadow-md z-10"><span className="text-lg">{selectedRegion ? `${titleText} - ${REGIONS[selectedRegion].name}${selectedCounty ? ` (${selectedCounty})` : ''}` : titleText}</span></div>
+                  <div className="flex-1 relative flex flex-col bg-gray-100 p-6 overflow-hidden">
                     {!selectedRegion ? (
                       // 臺灣地理形狀排版
-                      <div className="relative w-full max-w-[360px] h-[450px] mx-auto drop-shadow-xl">
-                          {/* 背景裝飾 */}
-                          <div className="absolute inset-0 bg-gray-200/50 rounded-full blur-3xl transform -skew-x-12"></div>
-                          
-                          {/* 北臺灣 */}
-                          <button onClick={() => setSelectedRegion('north')} className={`absolute top-[0%] left-[25%] w-[55%] h-[22%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-20 ${REGIONS.north.color} shadow-lg`}>
-                              北臺灣
-                          </button>
-                          
-                          {/* 中臺灣 */}
-                          <button onClick={() => setSelectedRegion('central')} className={`absolute top-[20%] left-[5%] w-[50%] h-[30%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-30 ${REGIONS.central.color} shadow-lg`}>
-                              中臺灣
-                          </button>
-                          
-                          {/* 東臺灣 */}
-                          <button onClick={() => setSelectedRegion('east')} className={`absolute top-[20%] left-[55%] w-[40%] h-[55%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-10 ${REGIONS.east.color} shadow-lg`}>
-                              <span className="writing-vertical-rl transform rotate-90">東臺灣</span>
-                          </button>
-                          
-                          {/* 南臺灣 */}
-                          <button onClick={() => setSelectedRegion('south')} className={`absolute top-[48%] left-[15%] w-[45%] h-[35%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-40 ${REGIONS.south.color} shadow-lg`}>
-                              南臺灣
-                          </button>
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        <div className="relative w-full max-w-[360px] h-[450px] drop-shadow-xl">
+                            {/* 背景裝飾 */}
+                            <div className="absolute inset-0 bg-gray-200/50 rounded-full blur-3xl transform -skew-x-12"></div>
+                            
+                            {/* 北臺灣 */}
+                            <button onClick={() => setSelectedRegion('north')} className={`absolute top-[0%] left-[25%] w-[55%] h-[22%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-20 ${REGIONS.north.color} shadow-lg`}>
+                                北臺灣
+                            </button>
+                            
+                            {/* 中臺灣 */}
+                            <button onClick={() => setSelectedRegion('central')} className={`absolute top-[20%] left-[5%] w-[50%] h-[30%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-30 ${REGIONS.central.color} shadow-lg`}>
+                                中臺灣
+                            </button>
+                            
+                            {/* 東臺灣 */}
+                            <button onClick={() => setSelectedRegion('east')} className={`absolute top-[20%] left-[55%] w-[40%] h-[55%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-10 ${REGIONS.east.color} shadow-lg`}>
+                                <span className="writing-vertical-rl transform rotate-90">東臺灣</span>
+                            </button>
+                            
+                            {/* 南臺灣 */}
+                            <button onClick={() => setSelectedRegion('south')} className={`absolute top-[48%] left-[15%] w-[45%] h-[35%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-40 ${REGIONS.south.color} shadow-lg`}>
+                                南臺灣
+                            </button>
+                            
+                            {/* 客運支線 (新增) */}
+                            <button onClick={() => setSelectedRegion('branches')} className={`absolute bottom-[-5%] right-[0%] w-[40%] h-[15%] rounded-full border-4 font-bold text-xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-50 ${REGIONS.branches.color} shadow-lg bg-gray-100`}>
+                                客運支線
+                            </button>
+                        </div>
+                      </div>
+                    ) : !selectedCounty ? (
+                      // 選擇 主要車站 或 縣市
+                      <div className="w-full h-full flex flex-col">
+                        <button onClick={() => setSelectedRegion(null)} className="self-start mb-4 text-blue-600 font-bold flex items-center bg-blue-100 px-4 py-2 rounded-lg hover:bg-blue-200"><i className="fa-solid fa-chevron-left text-[20px] mr-2"></i> 返回全區</button>
+                        
+                        <div className="flex-1 overflow-y-auto pr-2 pb-4">
+                            {/* 主要車站區塊 */}
+                            {(() => {
+                                const mainStations = REGIONS[selectedRegion].counties.flatMap(c => c.stations).filter(isMain);
+                                if (mainStations.length === 0) return null;
+                                return (
+                                    <div className="mb-6">
+                                        <h3 className="text-xl font-bold text-blue-800 border-b-2 border-blue-300 mb-3 pb-1">主要車站</h3>
+                                        <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                            {mainStations.map((st, idx) => (
+                                                <button key={`main-${idx}`} onClick={() => handleStationClick(st)} className="h-14 rounded-xl shadow border-2 font-bold text-xl flex items-center justify-center transition-colors hover:bg-blue-50 bg-white text-gray-800 border-gray-300">
+                                                    {cleanName(st)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* 依縣市選擇區塊 */}
+                            <div>
+                                <h3 className="text-xl font-bold text-green-800 border-b-2 border-green-300 mb-3 pb-1">{selectedRegion === 'branches' ? '依路線選擇' : '依縣市選擇'}</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {REGIONS[selectedRegion].counties.map((c, idx) => (
+                                        <button key={`county-${idx}`} onClick={() => setSelectedCounty(c.name)} className="h-14 rounded-xl shadow border-2 font-bold text-xl flex items-center justify-center transition-colors hover:bg-green-50 bg-green-100 text-green-900 border-green-300">
+                                            {c.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                       </div>
                     ) : (
-                      <div className="w-full h-full flex flex-col"><button onClick={() => setSelectedRegion(null)} className="self-start mb-4 text-blue-600 font-bold flex items-center bg-blue-100 px-4 py-2 rounded-lg hover:bg-blue-200"><i className="fa-solid fa-chevron-left text-[20px] mr-2"></i> 返回全區</button>
-                        <div className="grid grid-cols-3 md:grid-cols-4 gap-4 auto-rows-max">
-                          {REGIONS[selectedRegion].stations.map((station, idx) => (
-                              <button key={idx} 
-                                onClick={() => {
-                                    if (editingField === 'origin') {
-                                        updateTicketInfo('origin', station);
-                                        setEditingField('destination'); // 預設跳去選目的地
-                                        setSelectedRegion(null);
-                                    } else {
-                                        updateTicketInfo('destination', station);
-                                        setStep('TICKET_QUANTITY');
-                                    }
-                                }} 
-                                className={`h-16 md:h-20 rounded-xl shadow-md border-2 font-bold text-xl md:text-2xl flex items-center justify-center transition-colors hover:bg-blue-50 bg-white text-gray-800 border-gray-300`}>
-                                {station}
-                              </button>
-                          ))}
+                      // 選擇 該縣市內的所有車站
+                      <div className="w-full h-full flex flex-col">
+                        <button onClick={() => setSelectedCounty(null)} className="self-start mb-4 text-green-700 font-bold flex items-center bg-green-100 px-4 py-2 rounded-lg hover:bg-green-200"><i className="fa-solid fa-chevron-left text-[20px] mr-2"></i> 返回 {REGIONS[selectedRegion].name}</button>
+                        
+                        <h3 className="text-xl font-bold text-gray-800 border-b-2 border-gray-300 mb-3 pb-1">{selectedCounty} - 車站列表</h3>
+                        <div className="grid grid-cols-3 md:grid-cols-4 gap-3 auto-rows-max overflow-y-auto pr-2 pb-4">
+                            {REGIONS[selectedRegion].counties.find(c => c.name === selectedCounty).stations.map((st, idx) => (
+                                <button key={`st-${idx}`} onClick={() => handleStationClick(st)} className="h-14 rounded-xl shadow border-2 font-bold text-xl flex items-center justify-center transition-colors hover:bg-blue-50 bg-white text-gray-800 border-gray-300">
+                                    {cleanName(st)}
+                                </button>
+                            ))}
                         </div>
                       </div>
                     )}
