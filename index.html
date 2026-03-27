@@ -12,25 +12,18 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- 設定 Tailwind 自訂動畫 -->
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     keyframes: {
                         'slide-up-fade': {
-                            '0%': { transform: 'translateY(20px) scale(0.8)', opacity: 0 },
-                            '100%': { transform: 'translateY(0) scale(1)', opacity: 1 },
-                        },
-                        'coin-bounce': {
-                            '0%': { transform: 'translateY(0) scale(1)', opacity: 0 },
-                            '50%': { transform: 'translateY(-30px) scale(1.1)', opacity: 1 },
-                            '100%': { transform: 'translateY(0) scale(1)', opacity: 1 },
+                            '0%': { transform: 'translateY(20px)', opacity: 0 },
+                            '100%': { transform: 'translateY(0)', opacity: 1 },
                         }
                     },
                     animation: {
                         'slide-up-fade': 'slide-up-fade 0.5s ease-out forwards',
-                        'coin-bounce': 'coin-bounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
                     }
                 }
             }
@@ -43,6 +36,20 @@
         ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        
+        /* 拖曳時的視覺回饋 */
+        .drag-over-slot {
+            box-shadow: 0 0 20px rgba(74,222,128,1) !important;
+            border-color: #4ade80 !important;
+            transform: scale(1.05);
+        }
+        
+        /* 車票底紋 */
+        .ticket-bg {
+            background-color: #fcf6eb;
+            background-image: radial-gradient(#e5d9c5 1px, transparent 1px);
+            background-size: 10px 10px;
+        }
     </style>
 </head>
 <body class="bg-black text-gray-900 overflow-hidden">
@@ -81,14 +88,14 @@
           });
 
           const [selectedRegion, setSelectedRegion] = useState(null);
+          const [editingField, setEditingField] = useState(null); // 用於追蹤左側欄點擊了哪個「更改」
           
-          // 新增：付款與硬體互動狀態
-          const [paymentMethod, setPaymentMethod] = useState(null); // 'cash' or 'card'
+          const [paymentMethod, setPaymentMethod] = useState(null);
           const [paidAmount, setPaidAmount] = useState(0);
-          const [outputItems, setOutputItems] = useState([]); // 存放彈出的車票和硬幣
-          const [showTicketModal, setShowTicketModal] = useState(false); // 虛擬車票對話框
+          const [outputItems, setOutputItems] = useState([]); 
+          const [showTicketModal, setShowTicketModal] = useState(false); 
+          const [dragOverSlot, setDragOverSlot] = useState(null); // 'coin' or 'bill'
 
-          // 時鐘與倒數計時邏輯
           useEffect(() => {
             const timer = setInterval(() => {
               setCurrentTime(new Date());
@@ -119,6 +126,7 @@
               totalAmount: 0
             });
             setSelectedRegion(null);
+            setEditingField(null);
             setPaymentMethod(null);
             setPaidAmount(0);
             setOutputItems([]);
@@ -131,41 +139,33 @@
             resetIdle();
           };
 
-          const calculateTotal = (tickets) => {
-            const basePrice = 375; 
-            const halfPrice = Math.ceil(basePrice / 2);
-            return (tickets.full * basePrice) + ((tickets.child + tickets.senior + tickets.concession) * halfPrice);
-          };
-
-          const totalTicketsCount = Object.values(ticketInfo.tickets).reduce((a, b) => a + b, 0);
-
           const handleTicketChange = (type, delta) => {
             resetIdle();
             const currentQty = ticketInfo.tickets[type];
             const newQty = currentQty + delta;
+            const totalTicketsCount = Object.values(ticketInfo.tickets).reduce((a, b) => a + b, 0);
             if (newQty < 0) return;
             if (delta > 0 && totalTicketsCount >= 9) return; 
 
             const newTickets = { ...ticketInfo.tickets, [type]: newQty };
-            setTicketInfo(prev => ({
-              ...prev,
-              tickets: newTickets,
-              totalAmount: calculateTotal(newTickets)
-            }));
+            
+            const basePrice = 375; 
+            const halfPrice = Math.ceil(basePrice / 2);
+            const total = (newTickets.full * basePrice) + ((newTickets.child + newTickets.senior + newTickets.concession) * halfPrice);
+
+            setTicketInfo(prev => ({ ...prev, tickets: newTickets, totalAmount: total }));
           };
 
-          // 處理虛擬現金投入
           const insertMoney = (amount) => {
             resetIdle();
             const newPaid = paidAmount + amount;
             setPaidAmount(newPaid);
-            
             if (newPaid >= ticketInfo.totalAmount) {
                 setTimeout(() => processSuccess(newPaid), 800);
             }
           };
 
-          // 處理信用卡 NFC 感應
+          // 新增：處理信用卡感應
           const handleCardTap = () => {
             if (step === 'PAYMENT' && paymentMethod === 'card') {
                 resetIdle();
@@ -173,31 +173,81 @@
             }
           };
 
-          // 付款成功處理邏輯
+          // 處理左側邊欄點擊「更改」
+          const handleSidebarEdit = (field) => {
+             resetIdle();
+             setEditingField(field);
+             if (field === 'origin' || field === 'destination') {
+                 setSelectedRegion(null);
+                 setStep('STATION_SELECT');
+             } else if (field === 'date') {
+                 setStep('DATE_SELECT');
+             } else if (field === 'timeRange') {
+                 setStep('TIME_SELECT');
+             } else if (field === 'purchaseType') {
+                 setStep('PURCHASE_TYPE_SELECT');
+             }
+          };
+
           const processSuccess = (finalPaidAmount) => {
              setStep('SUCCESS');
              const change = finalPaidAmount - ticketInfo.totalAmount;
              
-             // 模擬實體機台出票與找零動畫
              setTimeout(() => {
                  let items = [];
+                 // 找零硬幣，固定排在左側
                  if (change > 0) {
-                     // 簡單模擬幾個金幣掉落
-                     const coinCount = Math.min(Math.ceil(change / 50), 5); // 最多顯示 5 個硬幣示意
+                     const coinCount = Math.min(Math.ceil(change / 50) + Math.floor((change%50)/10), 8); // 最多示意8枚
                      for(let i=0; i<coinCount; i++) {
-                         items.push({ type: 'coin', value: 50, id: `coin-${i}` });
+                         items.push({ 
+                             type: 'coin', 
+                             value: i % 2 === 0 ? 50 : 10, 
+                             id: `coin-${i}`,
+                             style: { left: `${15 + (i * 6)}%` } // 固定左側依序排列
+                         });
                      }
                  }
-                 // 掉出車票
-                 items.push({ type: 'ticket', id: 'ticket-1' });
+                 // 車票，固定排在右側
+                 items.push({ 
+                     type: 'ticket', 
+                     id: 'ticket-1',
+                     style: { right: '15%' } 
+                 });
                  setOutputItems(items);
                  
-                 // 延遲後自動彈出放大版虛擬車票
-                 setTimeout(() => {
-                    setShowTicketModal(true);
-                 }, 1500);
-
+                 setTimeout(() => { setShowTicketModal(true); }, 1000);
              }, 1000);
+          };
+
+          // 收走硬幣
+          const collectItem = (id, type) => {
+             if (type === 'coin') {
+                 setOutputItems(prev => prev.filter(item => item.id !== id));
+             } else if (type === 'ticket') {
+                 setShowTicketModal(true);
+             }
+          };
+
+          // ===== 拖曳付款事件 (Drag & Drop) =====
+          const handleDragStart = (e, value, type) => {
+              e.dataTransfer.setData('amount', value);
+              e.dataTransfer.setData('type', type); // 'bill' or 'coin'
+          };
+          
+          const handleDrop = (e, targetSlot) => {
+              e.preventDefault();
+              setDragOverSlot(null);
+              const amount = parseInt(e.dataTransfer.getData('amount'));
+              const type = e.dataTransfer.getData('type');
+              
+              if (amount) {
+                  // 檢查是否投錯洞 (紙鈔投紙鈔孔，硬幣投硬幣孔)
+                  if ((targetSlot === 'bill' && type === 'bill') || (targetSlot === 'coin' && type === 'coin')) {
+                      insertMoney(amount);
+                  } else {
+                      alert('請投入正確的插入口！(紙鈔請插右側，硬幣請投左側)');
+                  }
+              }
           };
 
           const renderHeader = () => (
@@ -210,12 +260,8 @@
                 )}
               </div>
               <div className="text-right text-gray-800 flex items-center space-x-4">
-                <div className="text-sm">
-                  現在 {currentTime.getFullYear()}/{String(currentTime.getMonth() + 1).padStart(2, '0')}/{String(currentTime.getDate()).padStart(2, '0')}
-                </div>
-                <div className="text-3xl font-bold tracking-wider">
-                  {String(currentTime.getHours()).padStart(2, '0')}:{String(currentTime.getMinutes()).padStart(2, '0')}
-                </div>
+                <div className="text-sm">現在 {currentTime.getFullYear()}/{String(currentTime.getMonth() + 1).padStart(2, '0')}/{String(currentTime.getDate()).padStart(2, '0')}</div>
+                <div className="text-3xl font-bold tracking-wider">{String(currentTime.getHours()).padStart(2, '0')}:{String(currentTime.getMinutes()).padStart(2, '0')}</div>
               </div>
             </div>
           );
@@ -223,23 +269,25 @@
           const renderSidebar = () => (
             <div className="w-1/4 bg-gray-200 border-r-2 border-gray-300 flex flex-col p-2 space-y-2">
               {[
-                { label: '購票類型', value: ticketInfo.purchaseType, active: false },
-                { label: '乘車日期', value: ticketInfo.date, active: false },
-                { label: '發車時間', value: ticketInfo.timeRange, active: false },
-                { label: '起站', value: ticketInfo.origin, active: false },
-                { label: '到達站', value: ticketInfo.destination || '請選擇', active: step === 'STATION_SELECT' }
+                { key: 'purchaseType', label: '購票類型', value: ticketInfo.purchaseType, active: step === 'PURCHASE_TYPE_SELECT' },
+                { key: 'date', label: '乘車日期', value: ticketInfo.date, active: step === 'DATE_SELECT' },
+                { key: 'timeRange', label: '發車時間', value: ticketInfo.timeRange, active: step === 'TIME_SELECT' },
+                { key: 'origin', label: '起站', value: ticketInfo.origin, active: editingField === 'origin' && step === 'STATION_SELECT' },
+                { key: 'destination', label: '到達站', value: ticketInfo.destination || '請選擇', active: editingField === 'destination' && step === 'STATION_SELECT' }
               ].map((item, idx) => (
                 <div key={idx} className="flex bg-gray-100 rounded-lg shadow overflow-hidden h-16">
                   <div className="flex-1 p-2 flex flex-col justify-center pl-4">
                     <span className="text-xs text-gray-500 font-bold">{item.label}</span>
                     <span className="text-sm text-gray-800 font-bold truncate">{item.value}</span>
                   </div>
-                  <div className={`w-16 flex flex-col justify-center items-center cursor-pointer
-                    ${item.active ? 'bg-orange-500 text-white' : 'bg-blue-400 text-white hover:bg-blue-500'}
-                  `}>
+                  {/* 所有按鈕都可以點擊更改 */}
+                  <button 
+                    onClick={() => handleSidebarEdit(item.key)}
+                    className={`w-16 flex flex-col justify-center items-center cursor-pointer transition-colors
+                    ${item.active ? 'bg-orange-500 text-white' : 'bg-blue-400 text-white hover:bg-blue-500'}`}>
                     <i className="fa-solid fa-pen text-[20px]"></i>
                     <span className="text-xs mt-1">更改</span>
-                  </div>
+                  </button>
                 </div>
               ))}
             </div>
@@ -248,37 +296,68 @@
           const renderFooter = (onPrev, onNext, isNextDisabled = false) => (
             <div className="flex justify-between items-center bg-gray-200 px-6 py-3 border-t-2 border-gray-300">
               <div className="flex items-center space-x-4 text-gray-600">
-                <div className="bg-blue-800 text-white p-2 rounded flex items-center justify-center">
-                  <i className="fa-solid fa-circle-question text-[24px]"></i>
-                </div>
+                <div className="bg-blue-800 text-white p-2 rounded flex items-center justify-center"><i className="fa-solid fa-circle-question text-[24px]"></i></div>
                 <span className="font-bold">剩餘時間：{idleTime} 秒</span>
               </div>
               <div className="flex space-x-4">
-                {onPrev && (
-                  <button onClick={onPrev} className="bg-gray-100 hover:bg-gray-300 border-2 border-gray-300 text-gray-800 px-8 py-3 rounded-lg text-xl font-bold shadow-md">
-                    上一步
-                  </button>
-                )}
-                {onNext && (
-                  <button 
-                    onClick={onNext} 
-                    disabled={isNextDisabled}
-                    className={`px-8 py-3 rounded-lg text-xl font-bold shadow-md transition-colors
-                      ${isNextDisabled ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-gray-100 hover:bg-gray-300 border-2 border-gray-300 text-gray-800'}
-                    `}
-                  >
-                    確定
-                  </button>
-                )}
+                {onPrev && (<button onClick={onPrev} className="bg-gray-100 hover:bg-gray-300 border-2 border-gray-300 text-gray-800 px-8 py-3 rounded-lg text-xl font-bold shadow-md">上一步</button>)}
+                {onNext && (<button onClick={onNext} disabled={isNextDisabled} className={`px-8 py-3 rounded-lg text-xl font-bold shadow-md transition-colors ${isNextDisabled ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-gray-100 hover:bg-gray-300 border-2 border-gray-300 text-gray-800'}`}>確定</button>)}
               </div>
             </div>
           );
 
-          // 修正過的首頁佈局，不會與語言列重疊
+          // ===== 左側欄編輯畫面擴充 =====
+          const renderDateSelect = () => {
+             // 簡單產生未來 7 天
+             const days = [];
+             for(let i=0; i<8; i++) {
+                 const d = new Date(); d.setDate(d.getDate() + i);
+                 days.push(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`);
+             }
+             return (
+               <div className="flex-1 flex flex-col h-full bg-gray-50"><div className="flex flex-1 overflow-hidden">{renderSidebar()}
+                <div className="flex-1 flex flex-col"><div className="bg-blue-600 text-white p-3 font-bold flex justify-between items-center shadow-md"><span className="text-lg">請選擇乘車日期</span></div>
+                  <div className="flex-1 p-8 grid grid-cols-2 md:grid-cols-3 gap-4 auto-rows-max">
+                     {days.map(d => (
+                         <button key={d} onClick={() => { updateTicketInfo('date', d); setStep('TIMETABLE'); }} 
+                            className={`h-20 rounded-xl shadow border-2 font-bold text-2xl transition-colors ${ticketInfo.date === d ? 'bg-orange-500 text-white' : 'bg-white text-gray-800 hover:bg-gray-100'}`}>{d}</button>
+                     ))}
+                  </div>
+                </div></div>{renderFooter(() => setStep('TIMETABLE'), null)}</div>
+             );
+          };
+
+          const renderTimeSelect = () => {
+             const times = ['00:00 - 06:00', '06:00 - 12:00', '12:00 - 18:00', '18:00 - 23:59', '全部時間'];
+             return (
+               <div className="flex-1 flex flex-col h-full bg-gray-50"><div className="flex flex-1 overflow-hidden">{renderSidebar()}
+                <div className="flex-1 flex flex-col"><div className="bg-blue-600 text-white p-3 font-bold flex justify-between items-center shadow-md"><span className="text-lg">請選擇發車時間</span></div>
+                  <div className="flex-1 p-8 grid grid-cols-1 md:grid-cols-2 gap-6 auto-rows-max">
+                     {times.map(t => (
+                         <button key={t} onClick={() => { updateTicketInfo('timeRange', t); setStep('TIMETABLE'); }} 
+                            className={`h-24 rounded-xl shadow border-2 font-bold text-3xl transition-colors ${ticketInfo.timeRange === t ? 'bg-orange-500 text-white' : 'bg-white text-gray-800 hover:bg-gray-100'}`}>{t}</button>
+                     ))}
+                  </div>
+                </div></div>{renderFooter(() => setStep('TIMETABLE'), null)}</div>
+             );
+          };
+
+          const renderPurchaseTypeSelect = () => (
+             <div className="flex-1 flex flex-col h-full bg-gray-50"><div className="flex flex-1 overflow-hidden">{renderSidebar()}
+              <div className="flex-1 flex flex-col"><div className="bg-blue-600 text-white p-3 font-bold flex justify-between items-center shadow-md"><span className="text-lg">請選擇購票類型</span></div>
+                <div className="flex-1 p-8 flex items-center justify-center space-x-6">
+                   <button onClick={() => { updateTicketInfo('purchaseType', '時刻購票'); setStep('TRAIN_TYPE'); }} className="w-64 h-64 bg-white border-4 border-orange-500 rounded-2xl shadow-xl flex flex-col items-center justify-center font-bold text-3xl text-gray-800 active:scale-95"><i className="fa-solid fa-clock text-6xl text-orange-500 mb-4"></i>時刻購票</button>
+                   <button onClick={() => { updateTicketInfo('purchaseType', '車次購票'); setStep('TRAIN_TYPE'); }} className="w-64 h-64 bg-white border-4 border-gray-300 rounded-2xl shadow-xl flex flex-col items-center justify-center font-bold text-3xl text-gray-800 hover:bg-gray-50 active:scale-95"><i className="fa-solid fa-train text-6xl text-gray-500 mb-4"></i>車次購票</button>
+                </div>
+              </div></div>{renderFooter(() => setStep('HOME'), null)}</div>
+          );
+
+
+          // ===== 主要流程畫面 =====
           const renderHome = () => (
             <div className="flex-1 bg-gray-50 flex flex-col h-full overflow-hidden" onClick={resetIdle}>
               <div className="flex-1 p-6 md:p-10 grid grid-cols-3 gap-4 md:gap-6 auto-rows-fr">
-                <button onClick={() => { updateTicketInfo('purchaseType', '時刻購票'); setStep('TRAIN_TYPE'); }} className="bg-blue-700 hover:bg-blue-600 text-white rounded-xl shadow-lg flex flex-col items-center justify-center p-4 transition-transform transform active:scale-95">
+                <button onClick={() => { setEditingField('destination'); updateTicketInfo('purchaseType', '時刻購票'); setStep('TRAIN_TYPE'); }} className="bg-blue-700 hover:bg-blue-600 text-white rounded-xl shadow-lg flex flex-col items-center justify-center p-4 transition-transform transform active:scale-95">
                   <i className="fa-solid fa-ticket text-[50px] md:text-[64px] mb-4"></i>
                   <span className="text-2xl md:text-3xl font-bold tracking-widest">購買車票</span>
                 </button>
@@ -299,8 +378,6 @@
                   <span className="text-2xl md:text-3xl font-bold tracking-widest">退票</span>
                 </button>
               </div>
-              
-              {/* 語言選單改用靜態排版，不再使用 absolute 導致覆蓋 */}
               <div className="w-full flex justify-center flex-wrap gap-4 px-10 py-6 bg-white border-t border-gray-200">
                 <button className="bg-orange-500 text-white px-8 py-2 md:py-3 rounded-full font-bold shadow-md border-2 border-white text-lg">中文</button>
                 <button className="bg-gray-200 text-gray-700 hover:bg-gray-300 px-8 py-2 md:py-3 rounded-full font-bold shadow-md text-lg">English</button>
@@ -311,50 +388,80 @@
             </div>
           );
 
-          // (省略部分無更動的選擇畫面，直接跳到 CONFIRMATION 變更)
-          const renderTrainType = () => /* ... 省略，與前版相同 ... */
+          const renderTrainType = () => 
             (<div className="flex-1 bg-gray-50 flex flex-col" onClick={resetIdle}>
               <div className="flex-1 flex items-center justify-center space-x-8 md:space-x-12 p-8 md:p-12">
-                {[
-                  { icon: 'fa-train', title: '非對號列車', type: '非對號列車' },
-                  { icon: 'fa-train', title: '對號列車', type: '對號列車' },
-                  { icon: 'fa-bicycle', title: '兩鐵列車', type: '兩鐵列車' }
-                ].map((item, idx) => (
+                {[{ icon: 'fa-train', title: '非對號列車', type: '非對號列車' }, { icon: 'fa-train', title: '對號列車', type: '對號列車' }, { icon: 'fa-bicycle', title: '兩鐵列車', type: '兩鐵列車' }].map((item, idx) => (
                   <button key={idx} onClick={() => { updateTicketInfo('trainCategory', item.type); setStep('STATION_SELECT'); }} className="bg-blue-700 hover:bg-blue-600 text-white w-48 md:w-64 h-72 md:h-96 rounded-2xl shadow-xl flex flex-col items-center justify-center p-6 transition-transform transform active:scale-95">
                     <i className={`fa-solid ${item.icon} text-[60px] md:text-[80px] mb-8`}></i>
                     <span className="text-3xl md:text-4xl font-bold tracking-widest leading-relaxed">{item.title.split('').map((char, i) => <React.Fragment key={i}>{char}{i === 1 ? <br/> : ''}</React.Fragment>)}</span>
                   </button>
                 ))}
               </div>
-              <div className="bg-gray-200 p-4 text-gray-600 font-bold border-t border-gray-300">剩餘時間：{idleTime} 秒</div>
             </div>);
 
-          const renderStationSelect = () => /* ... 省略，與前版相同 ... */
-             (<div className="flex-1 flex flex-col h-full bg-gray-50"><div className="flex flex-1 overflow-hidden">{renderSidebar()}
-                <div className="flex-1 flex flex-col"><div className="bg-blue-600 text-white p-3 font-bold flex justify-between items-center shadow-md z-10"><span className="text-lg">{selectedRegion ? `請選擇到達站 - ${REGIONS[selectedRegion].name}` : '請選擇到達站'}</span></div>
+          // 地圖畫面更新為臺灣形狀排版
+          const renderStationSelect = () => {
+             const titleText = editingField === 'origin' ? '請選擇起站' : '請選擇到達站';
+             
+             return (
+             <div className="flex-1 flex flex-col h-full bg-gray-50"><div className="flex flex-1 overflow-hidden">{renderSidebar()}
+                <div className="flex-1 flex flex-col"><div className="bg-blue-600 text-white p-3 font-bold flex justify-between items-center shadow-md z-10"><span className="text-lg">{selectedRegion ? `${titleText} - ${REGIONS[selectedRegion].name}` : titleText}</span></div>
                   <div className="flex-1 relative flex items-center justify-center bg-gray-100 p-6 overflow-hidden">
                     {!selectedRegion ? (
-                      <div className="relative w-[400px] h-[400px] md:h-[500px] flex flex-col items-center justify-center">
-                        <div className="absolute inset-0 opacity-10 flex items-center justify-center pointer-events-none"><i className="fa-solid fa-map text-[300px] md:text-[400px]"></i></div>
-                        <div className="grid grid-cols-2 gap-4 w-full h-full p-4 md:p-8 z-10 relative">
-                          <div className="col-span-2 flex justify-center h-24 md:h-32"><button onClick={() => setSelectedRegion('north')} className={`w-40 md:w-48 h-full rounded-2xl shadow-lg border-4 flex items-center justify-center text-2xl md:text-3xl font-bold transition-transform hover:scale-105 active:scale-95 ${REGIONS.north.color}`}>{REGIONS.north.name}</button></div>
-                          <div className="flex justify-end h-32 md:h-40 pr-2"><button onClick={() => setSelectedRegion('central')} className={`w-32 md:w-40 h-full rounded-2xl shadow-lg border-4 flex items-center justify-center text-2xl md:text-3xl font-bold transition-transform hover:scale-105 active:scale-95 ${REGIONS.central.color}`}>{REGIONS.central.name}</button></div>
-                          <div className="flex justify-start h-32 md:h-40 pl-2"><button onClick={() => setSelectedRegion('east')} className={`w-28 md:w-32 h-48 md:h-64 rounded-2xl shadow-lg border-4 flex items-center justify-center text-2xl md:text-3xl font-bold transition-transform hover:scale-105 active:scale-95 ${REGIONS.east.color} translate-y-8`}>{REGIONS.east.name}</button></div>
-                          <div className="col-span-2 flex justify-center h-32 md:h-40 -mt-8"><button onClick={() => setSelectedRegion('south')} className={`w-32 md:w-40 h-full rounded-2xl shadow-lg border-4 flex items-center justify-center text-2xl md:text-3xl font-bold transition-transform hover:scale-105 active:scale-95 ${REGIONS.south.color} -ml-16`}>{REGIONS.south.name}</button></div>
-                        </div>
+                      // 臺灣地理形狀排版
+                      <div className="relative w-full max-w-[360px] h-[450px] mx-auto drop-shadow-xl">
+                          {/* 背景裝飾 */}
+                          <div className="absolute inset-0 bg-gray-200/50 rounded-full blur-3xl transform -skew-x-12"></div>
+                          
+                          {/* 北臺灣 */}
+                          <button onClick={() => setSelectedRegion('north')} className={`absolute top-[0%] left-[25%] w-[55%] h-[22%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-20 ${REGIONS.north.color} shadow-lg`}>
+                              北臺灣
+                          </button>
+                          
+                          {/* 中臺灣 */}
+                          <button onClick={() => setSelectedRegion('central')} className={`absolute top-[20%] left-[5%] w-[50%] h-[30%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-30 ${REGIONS.central.color} shadow-lg`}>
+                              中臺灣
+                          </button>
+                          
+                          {/* 東臺灣 */}
+                          <button onClick={() => setSelectedRegion('east')} className={`absolute top-[20%] left-[55%] w-[40%] h-[55%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-10 ${REGIONS.east.color} shadow-lg`}>
+                              <span className="writing-vertical-rl transform rotate-90">東臺灣</span>
+                          </button>
+                          
+                          {/* 南臺灣 */}
+                          <button onClick={() => setSelectedRegion('south')} className={`absolute top-[48%] left-[15%] w-[45%] h-[35%] rounded-2xl border-4 font-bold text-3xl tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center z-40 ${REGIONS.south.color} shadow-lg`}>
+                              南臺灣
+                          </button>
                       </div>
                     ) : (
                       <div className="w-full h-full flex flex-col"><button onClick={() => setSelectedRegion(null)} className="self-start mb-4 text-blue-600 font-bold flex items-center bg-blue-100 px-4 py-2 rounded-lg hover:bg-blue-200"><i className="fa-solid fa-chevron-left text-[20px] mr-2"></i> 返回全區</button>
                         <div className="grid grid-cols-3 md:grid-cols-4 gap-4 auto-rows-max">
-                          {REGIONS[selectedRegion].stations.map((station, idx) => (<button key={idx} onClick={() => updateTicketInfo('destination', station)} className={`h-16 md:h-20 rounded-xl shadow-md border-2 font-bold text-xl md:text-2xl flex items-center justify-center transition-colors ${ticketInfo.destination === station ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'}`}>{station}</button>))}
+                          {REGIONS[selectedRegion].stations.map((station, idx) => (
+                              <button key={idx} 
+                                onClick={() => {
+                                    if (editingField === 'origin') {
+                                        updateTicketInfo('origin', station);
+                                        setEditingField('destination'); // 預設跳去選目的地
+                                        setSelectedRegion(null);
+                                    } else {
+                                        updateTicketInfo('destination', station);
+                                        setStep('TICKET_QUANTITY');
+                                    }
+                                }} 
+                                className={`h-16 md:h-20 rounded-xl shadow-md border-2 font-bold text-xl md:text-2xl flex items-center justify-center transition-colors hover:bg-blue-50 bg-white text-gray-800 border-gray-300`}>
+                                {station}
+                              </button>
+                          ))}
                         </div>
                       </div>
                     )}
                   </div>
-                </div></div>{renderFooter(() => setStep('TRAIN_TYPE'), () => setStep('TICKET_QUANTITY'), !ticketInfo.destination)}
+                </div></div>{renderFooter(() => setStep('TRAIN_TYPE'), null)}
               </div>);
+          };
 
-          const renderTicketQuantity = () => /* ... 省略 ... */
+          const renderTicketQuantity = () => 
              (<div className="flex-1 flex flex-col h-full bg-gray-50"><div className="flex flex-1 overflow-hidden">{renderSidebar()}
                 <div className="flex-1 flex flex-col relative"><div className="bg-blue-600 text-white p-3 font-bold flex justify-between items-center shadow-md"><span className="text-lg">請選擇票種與張數</span></div>
                   <div className="flex-1 p-6 md:p-12"><div className="grid grid-cols-2 gap-x-8 md:gap-x-16 gap-y-8 md:gap-y-12">
@@ -363,14 +470,14 @@
                           <div className="flex items-center space-x-2 md:space-x-6"><span className="text-3xl md:text-4xl font-bold text-gray-800 w-8 md:w-12 text-center">{ticketInfo.tickets[item.type]}</span>
                             <div className="flex bg-gray-100 rounded-lg overflow-hidden border border-gray-300 shadow-inner">
                               <button onClick={() => handleTicketChange(item.type, -1)} className="w-12 md:w-16 h-12 md:h-16 flex items-center justify-center bg-gray-200 hover:bg-gray-300 active:bg-gray-400 border-r border-gray-300 text-gray-600"><i className="fa-solid fa-minus text-[24px]"></i></button>
-                              <button onClick={() => handleTicketChange(item.type, 1)} className={`w-12 md:w-16 h-12 md:h-16 flex items-center justify-center text-gray-800 ${totalTicketsCount >= 9 ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300 active:bg-gray-400'}`} disabled={totalTicketsCount >= 9}><i className="fa-solid fa-plus text-[24px]"></i></button>
+                              <button onClick={() => handleTicketChange(item.type, 1)} className={`w-12 md:w-16 h-12 md:h-16 flex items-center justify-center text-gray-800 ${Object.values(ticketInfo.tickets).reduce((a, b) => a + b, 0) >= 9 ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300 active:bg-gray-400'}`} disabled={Object.values(ticketInfo.tickets).reduce((a, b) => a + b, 0) >= 9}><i className="fa-solid fa-plus text-[24px]"></i></button>
                             </div></div></div>
                       ))}</div>
-                    <div className="absolute bottom-8 right-12 text-right"><div className="text-red-600 font-bold flex items-center justify-end mb-2"><i className="fa-solid fa-circle-question text-[18px] mr-1"></i> 提醒您，購票上限為 9 張</div><div className="text-2xl text-orange-600 font-bold">總張數 <span className="text-4xl mx-2">{totalTicketsCount}</span> 張</div></div>
-                  </div></div></div>{renderFooter(() => setStep('STATION_SELECT'), () => setStep('TIMETABLE'), totalTicketsCount === 0)}
+                    <div className="absolute bottom-8 right-12 text-right"><div className="text-red-600 font-bold flex items-center justify-end mb-2"><i className="fa-solid fa-circle-question text-[18px] mr-1"></i> 提醒您，購票上限為 9 張</div><div className="text-2xl text-orange-600 font-bold">總張數 <span className="text-4xl mx-2">{Object.values(ticketInfo.tickets).reduce((a, b) => a + b, 0)}</span> 張</div></div>
+                  </div></div></div>{renderFooter(() => setStep('STATION_SELECT'), () => setStep('TIMETABLE'), Object.values(ticketInfo.tickets).reduce((a, b) => a + b, 0) === 0)}
               </div>);
 
-          const renderTimetable = () => /* ... 省略 ... */
+          const renderTimetable = () => 
             (<div className="flex-1 flex flex-col h-full bg-white"><div className="bg-blue-600 text-white px-4 py-2 flex justify-between items-center shadow"><div className="font-bold text-lg">{ticketInfo.date} {ticketInfo.origin} 至 {ticketInfo.destination}</div><div className="flex items-center space-x-4"><span className="text-sm">(第1頁，共2頁)</span><button className="bg-gray-200 text-gray-800 px-6 py-1 rounded shadow text-sm font-bold flex items-center">下一頁 <i className="fa-solid fa-chevron-right text-[16px] ml-1"></i></button></div></div>
                 <div className="flex-1 overflow-hidden flex flex-col"><div className="overflow-x-auto flex-1 flex flex-col"><div className="min-w-[800px] flex-1 flex flex-col">
                       <div className="grid grid-cols-10 gap-2 bg-gray-100 p-3 text-center text-gray-700 font-bold border-b border-gray-300"><div className="col-span-1">車種</div><div className="col-span-1">座位</div><div className="col-span-1">車次</div><div className="col-span-1">方向</div><div className="col-span-1">經由</div><div className="col-span-1">開車時間</div><div className="col-span-1">到達時間</div><div className="col-span-1">行駛時間</div><div className="col-span-1">備註</div><div className="col-span-1">購票</div></div>
@@ -382,7 +489,6 @@
                   <div className="bg-gray-100 p-2 flex items-center space-x-6 text-sm font-bold border-t border-gray-300"><div className="flex items-center"><div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>座位較多</div><div className="flex items-center"><div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>座位較少</div><div className="flex items-center"><div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>無座位</div></div></div>
                 {renderFooter(() => setStep('TICKET_QUANTITY'), null)}</div>);
 
-          // 確認購票，直接連動付款方式按鈕
           const renderConfirmation = () => {
             let ticketRows = [];
             if (ticketInfo.selectedTrain) {
@@ -430,7 +536,6 @@
                   <div className="mt-4 flex flex-col">
                     <span className="text-gray-700 font-bold mb-2 text-lg">請選擇付款方式</span>
                     <div className="flex space-x-4 h-20 md:h-24">
-                      {/* 直接設定付款方式並跳轉 */}
                       <button onClick={() => { setPaymentMethod('cash'); setStep('PAYMENT'); }} className="flex-1 bg-white border-2 border-gray-300 rounded-xl shadow hover:bg-blue-50 flex flex-col items-center justify-center transition-transform active:scale-95">
                         <div className="flex items-center space-x-2 text-green-600 mb-1"><i className="fa-solid fa-money-bill-wave text-[28px] md:text-[32px]"></i></div>
                         <span className="font-bold text-gray-700 text-sm md:text-base">現金</span>
@@ -447,29 +552,37 @@
             );
           };
 
-          // 付款操作畫面 (依據選擇現金或信用卡改變內容)
+          // 支援拖曳的付款畫面
           const renderPaymentScreen = () => {
              if (paymentMethod === 'cash') {
                  return (
                     <div className="flex-1 flex flex-col bg-gray-50 p-6 relative" onClick={resetIdle}>
-                       <div className="text-center mt-4 mb-8">
+                       <div className="text-center mt-4 mb-4">
                            <h2 className="text-3xl font-bold text-gray-800 mb-2">請投入現金</h2>
                            <div className="text-xl text-gray-600 mb-2">應付金額：<span className="text-red-500 font-bold text-3xl">${ticketInfo.totalAmount}</span></div>
                            <div className="text-xl text-green-700">已投入金額：<span className="font-bold text-4xl">${paidAmount}</span></div>
                        </div>
                        
                        <div className="bg-white p-6 rounded-2xl shadow-inner border border-gray-200">
-                           <p className="text-center text-gray-500 font-bold mb-4">（點擊下方虛擬鈔票與硬幣，模擬投入動作）</p>
+                           <p className="text-center text-gray-500 font-bold mb-4">（電腦版可將紙鈔/硬幣「拖曳」至下方插口，或直接「點擊」投入）</p>
                            <div className="flex justify-center space-x-4 mb-6">
                                {[1000, 500, 100].map(val => (
-                                   <button key={val} onClick={() => insertMoney(val)} className="bg-green-50 border-2 border-green-400 text-green-800 font-bold text-xl py-3 px-6 rounded shadow hover:bg-green-100 transition-transform active:scale-90 flex flex-col items-center">
+                                   <button key={val} 
+                                        draggable="true" 
+                                        onDragStart={(e) => handleDragStart(e, val, 'bill')}
+                                        onClick={() => insertMoney(val)} 
+                                        className="bg-green-50 border-2 border-green-400 text-green-800 font-bold text-xl py-3 px-6 rounded shadow hover:bg-green-100 transition-transform active:scale-90 flex flex-col items-center cursor-grab active:cursor-grabbing">
                                        <i className="fa-solid fa-money-bill-1-wave mb-1"></i> ${val}
                                    </button>
                                ))}
                            </div>
                            <div className="flex justify-center space-x-4">
                                {[50, 10, 5, 1].map(val => (
-                                   <button key={val} onClick={() => insertMoney(val)} className="bg-yellow-50 border-2 border-yellow-500 text-yellow-800 font-bold text-xl w-14 h-14 rounded-full shadow-md hover:bg-yellow-100 transition-transform active:scale-90 flex items-center justify-center">
+                                   <button key={val} 
+                                        draggable="true"
+                                        onDragStart={(e) => handleDragStart(e, val, 'coin')}
+                                        onClick={() => insertMoney(val)} 
+                                        className="bg-yellow-50 border-2 border-yellow-500 text-yellow-800 font-bold text-xl w-14 h-14 rounded-full shadow-md hover:bg-yellow-100 transition-transform active:scale-90 flex items-center justify-center cursor-grab active:cursor-grabbing">
                                        {val}
                                    </button>
                                ))}
@@ -490,13 +603,12 @@
              }
           };
 
-          // 成功等待畫面
           const renderSuccess = () => (
             <div className="flex-1 flex flex-col h-full bg-gray-50 items-center justify-center">
               <div className="bg-white p-10 rounded-3xl shadow-xl flex flex-col items-center border-4 border-green-500 text-center mx-4 max-w-lg w-full">
                 <i className="fa-solid fa-circle-check text-[80px] text-green-500 mb-6"></i>
                 <h1 className="text-3xl font-bold text-gray-800 mb-4 tracking-widest">交易成功</h1>
-                <p className="text-xl text-gray-600 font-bold mb-6">請於下方出口領取您的車票與找零</p>
+                <p className="text-xl text-gray-600 font-bold mb-6">請於下方出口點擊領取您的車票與找零</p>
                 <button onClick={handleReset} className="mt-4 bg-gray-200 text-gray-700 hover:bg-gray-300 px-6 py-2 rounded-xl font-bold shadow">
                   完成並返回首頁
                 </button>
@@ -504,46 +616,95 @@
             </div>
           );
 
-          // 虛擬車票彈窗 (點擊硬體面板的車票後彈出)
+          // 高擬真直式車票彈窗 (圖二/圖五風格)
           const renderTicketModal = () => {
              if(!showTicketModal) return null;
+             
+             // 產生假資料字串
+             const trainNameEn = ticketInfo.selectedTrain?.type === '自強' ? 'T.C.LTD EXP' : (ticketInfo.selectedTrain?.type === '普悠瑪' ? 'PUYUMA' : 'LOCAL');
+             const ticketType = ticketInfo.tickets.full > 0 ? '全票' : '半票';
+             const seatCar = '12';
+             const seatNum = '11';
+             const price = ticketInfo.totalAmount;
+
              return (
                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                  <div className="bg-[#fdf3e7] p-6 md:p-8 rounded shadow-2xl w-full max-w-sm border-4 border-[#e5c099] relative animate-slide-up-fade">
-                     <button onClick={() => setShowTicketModal(false)} className="absolute top-3 right-4 text-gray-500 hover:text-black font-bold text-2xl"><i className="fa-solid fa-times"></i></button>
-                     <h3 className="text-center font-bold text-2xl mb-4 tracking-widest border-b-2 border-gray-400 pb-3 text-blue-900">臺灣鐵路局乘車票</h3>
-                     <div className="flex justify-between items-center px-2 mb-6 text-blue-900">
-                         <div className="text-4xl font-bold">{ticketInfo.origin}</div>
-                         <div className="text-3xl text-gray-400"><i className="fa-solid fa-arrow-right"></i></div>
-                         <div className="text-4xl font-bold">{ticketInfo.destination}</div>
+                  {/* 直式車票本體 */}
+                  <div className="ticket-bg w-[320px] rounded shadow-2xl border border-gray-300 relative animate-slide-up-fade text-gray-900 font-sans p-4 flex flex-col">
+                     <button onClick={() => setShowTicketModal(false)} className="absolute -top-10 right-0 text-white hover:text-gray-300 font-bold text-3xl"><i className="fa-solid fa-times"></i></button>
+                     
+                     {/* 頂部標頭 */}
+                     <div className="text-center font-bold text-[18px] tracking-[0.5em] mb-2 text-black">臺鐵公司</div>
+                     
+                     {/* 日期與車次 */}
+                     <div className="flex justify-between font-bold text-[16px] mb-2">
+                         <span>{ticketInfo.date.replace(/\//g, '.')}</span>
+                         <span>{ticketInfo.selectedTrain?.no}次</span>
                      </div>
-                     <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-lg font-bold text-gray-800 border-b-2 border-gray-400 pb-6 mb-4">
-                         <div className="col-span-2 text-center text-xl bg-orange-200 py-1 rounded">{ticketInfo.date}</div>
-                         <div className="text-blue-800">{ticketInfo.selectedTrain?.type} {ticketInfo.selectedTrain?.no}次</div>
-                         <div className="text-right">7車 {ticketInfo.tickets.full ? '2號' : '4號'}</div>
-                         <div>開車：{ticketInfo.selectedTrain?.dep}</div>
-                         <div className="text-right">到達：{ticketInfo.selectedTrain?.arr}</div>
+                     
+                     {/* 票種與車種 */}
+                     <div className="flex justify-between font-bold items-end border-b border-gray-400 pb-2 mb-4">
+                         <span className="text-[20px]">{ticketType}</span>
+                         <div className="text-right leading-tight">
+                             <div className="text-[20px]">{ticketInfo.selectedTrain?.type}</div>
+                             <div className="text-[12px] uppercase">{trainNameEn}</div>
+                         </div>
                      </div>
-                     <div className="flex justify-between text-2xl font-bold text-red-600">
-                         <span>總額</span>
-                         <span className="text-3xl">${ticketInfo.totalAmount}</span>
+                     
+                     {/* 起迄站與時間資訊 */}
+                     <div className="flex justify-between items-start mb-4">
+                         {/* 左側：車站 */}
+                         <div className="flex flex-col items-center">
+                             <span className="text-[36px] font-bold leading-none mb-1">{ticketInfo.origin}</span>
+                             <span className="text-[14px] uppercase font-bold mb-1">Station</span>
+                             <i className="fa-solid fa-caret-down my-1 text-[24px]"></i>
+                             <span className="text-[36px] font-bold leading-none mt-1 mb-1">{ticketInfo.destination}</span>
+                             <span className="text-[14px] uppercase font-bold">Station</span>
+                         </div>
+                         {/* 右側：時間與座位 */}
+                         <div className="flex flex-col items-end text-right">
+                              <div className="font-bold text-[22px] leading-none mb-1">{ticketInfo.selectedTrain?.dep}開</div>
+                              <div className="text-[12px] uppercase font-bold mb-3">DEPARTURE</div>
+                              
+                              <div className="font-bold text-[24px] leading-none mb-1">{seatCar}車{seatNum}號</div>
+                              <div className="text-[12px] uppercase font-bold mb-3">CAR.{seatCar} SEAT.{seatNum}</div>
+                              
+                              <div className="font-bold text-[22px] leading-none mb-1">{ticketInfo.selectedTrain?.arr}到</div>
+                              <div className="text-[12px] uppercase font-bold mb-2">ARRIVAL</div>
+                              
+                              <div className="font-bold text-[24px]">NT${price}</div>
+                         </div>
                      </div>
+                     
+                     {/* 底部：假 QR Code 與條碼資訊 */}
+                     <div className="flex justify-between items-end border-t border-gray-400 pt-3">
+                         <div className="bg-white p-1 rounded-sm"><i className="fa-solid fa-qrcode text-[75px]"></i></div>
+                         <div className="text-[10px] text-right font-bold leading-tight">
+                              <div>限當日當次車有效</div>
+                              <div>-</div>
+                              <div>1210-1173-0822 20:05</div>
+                              <div>N4030205765-0810</div>
+                              <div>網刷&#123;5258&#125;會</div>
+                         </div>
+                     </div>
+
                   </div>
                </div>
              )
           }
 
-          // **新增：實體機台硬體面板組件**
+          // ===== 實體機台硬體面板 (含 Drag & Drop) =====
           const renderHardwarePanel = () => {
              const isCardActive = (step === 'PAYMENT' && paymentMethod === 'card');
              const isCashActive = (step === 'PAYMENT' && paymentMethod === 'cash');
 
              return (
                <div className="w-full h-full flex flex-col justify-between p-4 font-sans relative">
-                  {/* 上排：各種插口與感應區 */}
+                  
+                  {/* 上排硬體：感應區與插槽 */}
                   <div className="flex justify-between items-start h-1/2 mt-2 px-2 md:px-8">
                      
-                     {/* 硬幣投入口 */}
+                     {/* 左側：硬幣投入口 */}
                      <div className="flex flex-col items-center">
                         <div className="flex items-center space-x-1 mb-1 text-[10px] text-gray-400">
                            <span className="border border-gray-500 rounded-full w-4 h-4 flex items-center justify-center">50</span>
@@ -552,10 +713,18 @@
                            <span className="border border-gray-500 rounded-full w-4 h-4 flex items-center justify-center">1</span>
                         </div>
                         <div className="text-xs md:text-sm mb-2 text-blue-300 font-bold tracking-wider">硬幣投入口</div>
-                        <div className={`w-2 h-14 bg-black rounded-full shadow-[inset_0_0_5px_rgba(0,0,0,1)] border border-gray-700 ${isCashActive ? 'animate-pulse shadow-[0_0_10px_rgba(250,204,21,0.8)] border-yellow-400' : ''}`}></div>
+                        {/* 支援 Drop 的硬幣槽 */}
+                        <div 
+                           onDragOver={(e) => { e.preventDefault(); setDragOverSlot('coin'); }}
+                           onDragLeave={() => setDragOverSlot(null)}
+                           onDrop={(e) => handleDrop(e, 'coin')}
+                           className={`w-2 h-16 bg-black rounded-full shadow-[inset_0_0_5px_rgba(0,0,0,1)] border transition-all duration-200
+                           ${dragOverSlot === 'coin' ? 'drag-over-slot' : 'border-gray-700'} 
+                           ${isCashActive && dragOverSlot !== 'coin' ? 'animate-pulse shadow-[0_0_10px_rgba(250,204,21,0.8)] border-yellow-400' : ''}`}>
+                        </div>
                      </div>
 
-                     {/* 卡片感應區 (NFC) */}
+                     {/* 中央：卡片感應區 */}
                      <div className="flex flex-col items-center cursor-pointer relative" onClick={handleCardTap}>
                         <div className="text-xs md:text-sm mb-2 text-blue-300 font-bold tracking-wider">卡片感應區</div>
                         <div className={`w-24 md:w-32 h-16 md:h-20 bg-black border-2 border-blue-500 rounded-lg flex items-center justify-center relative transition-colors ${isCardActive ? 'bg-blue-900 border-blue-300 shadow-[0_0_20px_rgba(59,130,246,0.9)] animate-pulse' : ''}`}>
@@ -564,7 +733,7 @@
                         </div>
                      </div>
 
-                     {/* 紙鈔與收據插槽 */}
+                     {/* 右側：紙鈔插槽 */}
                      <div className="flex flex-col items-end space-y-4 w-1/3">
                         <div className="flex flex-col items-end">
                             <div className="text-xs md:text-sm text-blue-300 font-bold tracking-wider flex items-center mb-1"><i className="fa-solid fa-receipt mr-1"></i> 收據出口</div>
@@ -572,44 +741,52 @@
                         </div>
                         <div className="flex flex-col items-end">
                             <div className="text-xs md:text-sm text-blue-300 font-bold tracking-wider flex items-center mb-1"><i className="fa-solid fa-money-bill mr-1"></i> 紙鈔插入口</div>
-                            <div className={`w-28 md:w-36 h-3 bg-black rounded shadow-inner flex items-center justify-center border border-gray-600 ${isCashActive ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.8)]' : ''}`}>
-                                <div className={`w-12 h-1 rounded-full ${isCashActive ? 'bg-green-400 animate-pulse' : 'bg-red-600'}`}></div>
+                            {/* 支援 Drop 的紙鈔槽 */}
+                            <div 
+                               onDragOver={(e) => { e.preventDefault(); setDragOverSlot('bill'); }}
+                               onDragLeave={() => setDragOverSlot(null)}
+                               onDrop={(e) => handleDrop(e, 'bill')}
+                               className={`w-28 md:w-36 h-4 bg-black rounded shadow-inner flex items-center justify-center border transition-all duration-200 
+                               ${dragOverSlot === 'bill' ? 'drag-over-slot' : 'border-gray-600'}
+                               ${isCashActive && dragOverSlot !== 'bill' ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.8)]' : ''}`}>
+                                <div className={`w-14 h-1 rounded-full ${isCashActive ? 'bg-green-400 animate-pulse' : 'bg-red-600'}`}></div>
                             </div>
                         </div>
                      </div>
                   </div>
 
-                  {/* 下排：車票與找零出口 */}
+                  {/* 下排：車票與找零出口 (固定位置，點選消失) */}
                   <div className="h-1/2 flex flex-col items-center justify-end relative pb-4">
                       <div className="text-sm md:text-base text-blue-300 font-bold tracking-widest mb-2"><i className="fa-solid fa-ticket mr-2"></i>車票 / 找零出口</div>
                       
                       {/* 金屬凹槽設計 */}
                       <div className="w-[85%] md:w-[60%] h-20 md:h-24 bg-gradient-to-b from-gray-700 to-gray-400 rounded-t-2xl border-x-4 border-t-4 border-gray-500 shadow-[inset_0_15px_25px_rgba(0,0,0,0.9)] relative flex justify-center items-end pb-1 overflow-visible">
                           
-                          {/* 動畫輸出的車票與硬幣 */}
-                          {outputItems.map((item, idx) => (
+                          {/* 渲染輸出的車票與硬幣 */}
+                          {outputItems.map((item) => (
                               <div key={item.id} 
-                                   className={`absolute bottom-2 cursor-pointer transition-transform hover:scale-110 z-20 ${item.type === 'coin' ? 'animate-coin-bounce' : 'animate-slide-up-fade'}`}
-                                   style={{ 
-                                       left: `${30 + Math.random() * 40}%`, 
-                                       transform: `rotate(${Math.random() * 20 - 10}deg)` 
-                                   }}
-                                   onClick={() => item.type === 'ticket' ? setShowTicketModal(true) : null}>
+                                   className="absolute bottom-2 cursor-pointer transition-transform hover:scale-110 z-20 animate-slide-up-fade"
+                                   style={item.style}
+                                   onClick={() => collectItem(item.id, item.type)}>
                                   
+                                  {/* 硬幣 */}
                                   {item.type === 'coin' && (
                                       <div className="w-8 h-8 md:w-10 md:h-10 bg-yellow-400 rounded-full border-2 border-yellow-600 flex items-center justify-center text-sm font-bold text-yellow-800 shadow-[2px_2px_5px_rgba(0,0,0,0.5)]">
                                           {item.value}
                                       </div>
                                   )}
                                   
+                                  {/* 直立式車票 */}
                                   {item.type === 'ticket' && (
-                                      <div className="w-24 md:w-28 h-12 md:h-14 bg-orange-100 border-2 border-orange-300 text-[10px] md:text-xs text-black shadow-[2px_2px_10px_rgba(0,0,0,0.5)] flex items-center justify-center p-1 whitespace-nowrap relative">
-                                           <div className="flex flex-col items-center leading-tight">
-                                               <span className="font-bold text-sm">{ticketInfo.origin}-{ticketInfo.destination}</span>
-                                               <span>{ticketInfo.selectedTrain?.type}</span>
-                                           </div>
-                                           <div className="absolute -top-8 bg-blue-600 text-white text-xs px-2 py-1 rounded shadow animate-pulse whitespace-nowrap before:content-[''] before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-t-blue-600">
-                                               點擊查看車票
+                                      <div className="w-16 h-24 bg-[#FEF5E7] border border-gray-400 text-black shadow-[2px_2px_10px_rgba(0,0,0,0.5)] flex flex-col items-center py-2 px-1 relative transform rotate-[10deg]">
+                                           <div className="text-[8px] font-bold tracking-widest border-b border-gray-300 w-full text-center pb-1 mb-1">臺鐵公司</div>
+                                           <div className="text-[12px] font-bold">{ticketInfo.origin}</div>
+                                           <i className="fa-solid fa-caret-down text-[10px] my-[2px]"></i>
+                                           <div className="text-[12px] font-bold">{ticketInfo.destination}</div>
+                                           <div className="text-[8px] mt-auto font-bold">{ticketInfo.selectedTrain?.type}</div>
+                                           
+                                           <div className="absolute -top-8 right-0 bg-blue-600 text-white text-xs px-2 py-1 rounded shadow animate-pulse whitespace-nowrap before:content-[''] before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-t-blue-600">
+                                               點擊查看
                                            </div>
                                       </div>
                                   )}
@@ -631,28 +808,24 @@
               case 'CONFIRMATION': return renderConfirmation();
               case 'PAYMENT': return renderPaymentScreen();
               case 'SUCCESS': return renderSuccess();
+              case 'DATE_SELECT': return renderDateSelect();
+              case 'TIME_SELECT': return renderTimeSelect();
+              case 'PURCHASE_TYPE_SELECT': return renderPurchaseTypeSelect();
               default: return renderHome();
             }
           };
 
           return (
             <div className="w-full h-[100dvh] bg-black md:p-4 select-none overflow-hidden flex flex-col justify-center items-center">
-              
-              {/* 整座機台外框容器 */}
               <div className="w-full h-full md:max-w-5xl md:max-h-[850px] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] relative">
-                 
-                 {/* 1. 上半部：螢幕畫面 (React 軟體介面) */}
                  <div className="flex-1 bg-white md:rounded-t-2xl overflow-hidden flex flex-col border-8 border-gray-800 border-b-4 relative z-10">
                     {renderHeader()}
                     {renderCurrentStep()}
                     {renderTicketModal()}
                  </div>
-                 
-                 {/* 2. 下半部：實體機台硬體面板 (感應區、投幣口、出票口) */}
                  <div className="h-64 md:h-72 bg-zinc-800 md:rounded-b-2xl border-8 border-gray-800 border-t-0 flex flex-col relative z-0 shadow-[inset_0_20px_20px_rgba(0,0,0,0.5)]">
                     {renderHardwarePanel()}
                  </div>
-
               </div>
             </div>
           );
